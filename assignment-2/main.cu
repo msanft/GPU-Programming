@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <cuda_runtime.h>
 #include <stdint.h>
-#include <float.h>
-#include <windows.h>
 #include <helper_functions.h>
 #include <helper_cuda.h>
 
