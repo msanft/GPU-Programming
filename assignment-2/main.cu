@@ -50,8 +50,7 @@ void _add_matrices_cpu(float_t *res, float_t *m1, float_t *m2, uint32_t rows,
 add_matrices_cpu performs matrix addition on `m1` and `m2` and stores the result
 in `res`.
 
-It also times the operation and returns the time taken to a 100-nanosecond
-precision.
+It also times the operation and returns the time taken to nanosecond-precision.
 */
 int64_t add_matrices_cpu(float_t *res, float_t *m1, float_t *m2, uint32_t rows,
                          uint32_t cols) {
@@ -118,7 +117,7 @@ It also performs CUDA memory management and kernel invocation, using the
 specified `block_width` and `block_height` for the kernel, as well as timing the
 operation.
 
-It returns the time taken to a 100-nanosecond precision.
+It returns the time taken to nanosecond-precision.
 */
 int64_t add_matrices_gpu(float_t *res, float_t *m1, float_t *m2, uint32_t rows,
                          uint32_t cols, uint32_t block_width,
