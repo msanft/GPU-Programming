@@ -97,10 +97,10 @@ __global__ void _memory_parallel_calculations(float_t *res_a, float_t *res_b,
                                               float_t *res_c, float_t *res_d) {
 #pragma unroll 16
   for (uint32_t i = 0; i < NUM_ITERATIONS; i++) {
-    res_a[threadIdx.x] *= 3;
-    res_b[threadIdx.x] *= 3;
-    res_c[threadIdx.x] *= 3;
-    res_d[threadIdx.x] *= 3;
+    res_a[blockIdx.x*blockDim.x+threadIdx.x] *= 3.0f;
+    res_b[blockIdx.x*blockDim.x+threadIdx.x] *= 3.0f;
+    res_c[blockIdx.x*blockDim.x+threadIdx.x] *= 3.0f;
+    res_d[blockIdx.x*blockDim.x+threadIdx.x] *= 3.0f;
   }
 }
 
@@ -118,8 +118,13 @@ It does not use global memory.
 
 It also times the operation and returns the time taken to nanosecond-precision.
 */
-int64_t parallel_calculations(uint32_t thread_count) {
+int64_t parallel_calculations(uint32_t block_width, uint32_t block_height) {
   float_t *d_res_a, *d_res_d, *d_res_e, *d_res_f;
+
+  dim3 grid(1, 1);
+  dim3 block(block_width, block_height);
+
+  uint32_t thread_count = block_width * block_height;
 
   // a, d, e, f -> 4 results
   cudaMalloc(&d_res_a, sizeof(float_t) * thread_count);
@@ -131,8 +136,7 @@ int64_t parallel_calculations(uint32_t thread_count) {
 
   clock_gettime(CLOCK_MONOTONIC, &start);
 
-  _parallel_calculations<<<1, thread_count>>>(d_res_a, d_res_d, d_res_e,
-                                              d_res_f);
+  _parallel_calculations<<<grid, block>>>(d_res_a, d_res_d, d_res_e, d_res_f);
 
   // Wait for all threads to finish.
   checkCudaErrors(cudaDeviceSynchronize());
@@ -162,8 +166,13 @@ It does not use global memory.
 
 It also times the operation and returns the time taken to nanosecond-precision.
 */
-int64_t non_parallel_calculations(uint32_t thread_count) {
+int64_t non_parallel_calculations(uint32_t block_width, uint32_t block_height) {
   float_t *d_res;
+
+  dim3 grid(1, 1);
+  dim3 block(block_width, block_height);
+
+  uint32_t thread_count = block_width * block_height;
 
   // 1 result only
   cudaMalloc(&d_res, sizeof(float_t) * thread_count);
@@ -172,7 +181,7 @@ int64_t non_parallel_calculations(uint32_t thread_count) {
 
   clock_gettime(CLOCK_MONOTONIC, &start);
 
-  _non_parallel_calculations<<<1, thread_count>>>(d_res);
+  _non_parallel_calculations<<<grid, block>>>(d_res);
 
   // Wait for all threads to finish.
   checkCudaErrors(cudaDeviceSynchronize());
@@ -193,20 +202,26 @@ by IL parallelization and memory ILP.
 
 It also times the operation and returns the time taken to nanosecond-precision.
 */
-int64_t memory_parallel_calculations(uint32_t thread_count) {
+int64_t memory_parallel_calculations(uint32_t block_width,
+                                     uint32_t block_height) {
   float_t *d_res_a, *d_res_b, *d_res_c, *d_res_d;
 
-  cudaMalloc(&d_res_a, thread_count * sizeof(float_t));
-  cudaMalloc(&d_res_b, thread_count * sizeof(float_t));
-  cudaMalloc(&d_res_c, thread_count * sizeof(float_t));
-  cudaMalloc(&d_res_d, thread_count * sizeof(float_t));
+  dim3 grid(1, 1);
+  dim3 block(block_width, block_height);
+
+  uint32_t thread_count = block_width * block_height;
+
+  cudaMalloc(&d_res_a, sizeof(float_t) * thread_count);
+  cudaMalloc(&d_res_b, sizeof(float_t) * thread_count);
+  cudaMalloc(&d_res_c, sizeof(float_t) * thread_count);
+  cudaMalloc(&d_res_d, sizeof(float_t) * thread_count);
 
   struct timespec start, end;
 
   clock_gettime(CLOCK_MONOTONIC, &start);
 
-  _memory_parallel_calculations<<<1, thread_count>>>(d_res_a, d_res_b, d_res_c,
-                                                     d_res_d);
+  _memory_parallel_calculations<<<grid, block>>>(d_res_a, d_res_b, d_res_c,
+                                                 d_res_d);
   checkCudaErrors(cudaDeviceSynchronize());
 
   clock_gettime(CLOCK_MONOTONIC, &end);
@@ -224,23 +239,30 @@ int64_t memory_parallel_calculations(uint32_t thread_count) {
 int main(void) {
   printf("Iterations: %d\n", NUM_ITERATIONS);
 
-  for (uint32_t i = 0; i <= 10; i++) {
-    uint32_t thread_count = 1 << i;
-    printf("Thread count: %d\n", thread_count);
+  uint32_t block_widths[] = {1, 2, 4, 8, 16, 32};
+  uint32_t block_heights[] = {1, 2, 4, 8, 16, 32};
 
-    int64_t ilp4_time = parallel_calculations(thread_count);
+  for (uint32_t i = 0; i <= 5; i++) {
+    printf("Block width: %d, block height: %d\n", block_widths[i],
+           block_heights[i]);
+    printf("Thread count: %d\n", block_widths[i] * block_heights[i]);
+
+    int64_t ilp4_time =
+        parallel_calculations(block_widths[i], block_heights[i]);
     // 4 operations per iteration * NUM_ITERATIONS
     float_t time_per_op_ilp = (float_t)ilp4_time / (4 * NUM_ITERATIONS);
     printf("\tILP4 time: %ld ns (%.2f ns per operation)\n", ilp4_time,
            time_per_op_ilp);
 
-    int64_t non_ilp_time = non_parallel_calculations(thread_count);
+    int64_t non_ilp_time =
+        non_parallel_calculations(block_widths[i], block_heights[i]);
     // 1 operation per iteration * NUM_ITERATIONS
     float_t time_per_op_non_ilp = (float_t)non_ilp_time / NUM_ITERATIONS;
     printf("\tNon-ILP time: %ld ns (%.2f ns per operation)\n", non_ilp_time,
            time_per_op_non_ilp);
 
-    int64_t memory_ilp_time = memory_parallel_calculations(thread_count);
+    int64_t memory_ilp_time =
+        memory_parallel_calculations(block_widths[i], block_heights[i]);
     // 4 operations per iteration * NUM_ITERATIONS
     float_t time_per_op_memory_ilp =
         (float_t)memory_ilp_time / (4 * NUM_ITERATIONS);
