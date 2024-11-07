@@ -151,26 +151,25 @@ int64_t non_parallel_calculations(uint32_t thread_count) {
 // <--- MAIN FUNCTION --->
 
 int main(void) {
+  printf("Iters: %d\n", NUM_ITERATIONS);
+
   for (uint32_t i = 0; i <= 11; i++) {
     uint32_t thread_count = 1 << i;
     printf("Thread count: %d\n", thread_count);
 
-    int64_t ops_count_non_ilp = NUM_ITERATIONS * thread_count * 2;
-    int64_t ops_count_ilp = ops_count_non_ilp * 4;
-
     int64_t ilp4_time = parallel_calculations(thread_count);
 
-    printf("\tILP4 time: %ld ns\n", ilp4_time / ops_count_ilp);
+    printf("\tILP4 time: %ld ns\n", ilp4_time);
 
     int64_t non_ilp_time = non_parallel_calculations(thread_count);
 
-    printf("\tNon-ILP time: %ld ns\n", non_ilp_time / ops_count_non_ilp);
+    printf("\tNon-ILP time: %ld ns\n", non_ilp_time);
 
     int64_t speedup = non_ilp_time / ilp4_time;
     printf("\tSpeedup ILP4 vs. non-ILP: %ld%\n", (speedup - 1) * 100);
   }
 
-  cudaDeviceReset();
+  checkCudaErrors(cudaDeviceReset());
 
   return 0;
 }
