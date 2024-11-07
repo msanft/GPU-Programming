@@ -170,5 +170,7 @@ int main(void) {
     printf("\tSpeedup ILP4 vs. non-ILP: %ld%\n", (speedup - 1) * 100);
   }
 
+  cudaDeviceReset();
+
   return 0;
 }
