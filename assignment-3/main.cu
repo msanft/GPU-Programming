@@ -30,10 +30,13 @@ variables, that should be influenced by IL parallelization.
 The results are stored in `res`, even though it doesn't have any meaning, as
 it's solely used to demonstrate the power of ILP.
 
+It does not use global memory.
+
 It should not be used directly. Instead, use the wrapper function
 `parallel_calculations`.
 */
-__global__ void _parallel_calculations(float_t *res) {
+__global__ void _parallel_calculations(float_t *res_a, float_t *res_d,
+                                       float_t *res_e, float_t *res_f) {
   // dummy values
   float_t a = 1.0;
   float_t b = 2.0;
@@ -50,10 +53,10 @@ __global__ void _parallel_calculations(float_t *res) {
     f = f * b + c;
   }
 
-  *(res) = a;
-  *(res + 1) = d;
-  *(res + 2) = e;
-  *(res + 3) = f;
+  res_a[threadIdx.x] = a;
+  res_d[threadIdx.x] = d;
+  res_e[threadIdx.x] = e;
+  res_f[threadIdx.x] = f;
 }
 
 /*
@@ -62,6 +65,8 @@ variables, that should *not* be influenced by IL parallelization.
 
 The results are stored in `res`, even though it doesn't have any meaning, as
 it's solely used to demonstrate the power of ILP.
+
+It does not use global memory.
 
 It should not be used directly. Instead, use the wrapper function
 `non_parallel_calculations`.
@@ -76,7 +81,7 @@ __global__ void _non_parallel_calculations(float_t *res) {
   for (unsigned int i = 0; i < NUM_ITERATIONS; i++)
     a = a * b + c;
 
-  *(res) = a;
+  res[threadIdx.x] = a;
 }
 
 /*
@@ -89,26 +94,34 @@ influenced by IL parallelization.
 The results are stored in `res`, even though it doesn't have any meaning, as
 it's solely used to demonstrate the power of ILP.
 
+It does not use global memory.
+
 It also times the operation and returns the time taken to nanosecond-precision.
 */
 int64_t parallel_calculations(uint32_t thread_count) {
-  float_t *d_res;
+  float_t *d_res_a, *d_res_d, *d_res_e, *d_res_f;
 
   // a, d, e, f -> 4 results
-  cudaMalloc(&d_res, 4 * sizeof(float_t));
+  cudaMalloc(&d_res_a, sizeof(float_t) * thread_count);
+  cudaMalloc(&d_res_d, sizeof(float_t) * thread_count);
+  cudaMalloc(&d_res_e, sizeof(float_t) * thread_count);
+  cudaMalloc(&d_res_f, sizeof(float_t) * thread_count);
 
   struct timespec start, end;
 
   clock_gettime(CLOCK_MONOTONIC, &start);
 
-  _parallel_calculations<<<1, thread_count>>>(d_res);
+  _parallel_calculations<<<1, thread_count>>>(d_res_a, d_res_d, d_res_e, d_res_f);
 
   // Wait for all threads to finish.
   checkCudaErrors(cudaDeviceSynchronize());
 
   clock_gettime(CLOCK_MONOTONIC, &end);
 
-  cudaFree(d_res);
+  cudaFree(d_res_a);
+  cudaFree(d_res_d);
+  cudaFree(d_res_e);
+  cudaFree(d_res_f);
 
   return get_time_diff_ns(start, end);
 }
@@ -124,13 +137,15 @@ It performs a series of dummy calculations on a set of variables, that should
 The results are stored in `res`, even though it doesn't have any meaning, as
 it's solely used to demonstrate the power of ILP.
 
+It does not use global memory.
+
 It also times the operation and returns the time taken to nanosecond-precision.
 */
 int64_t non_parallel_calculations(uint32_t thread_count) {
   float_t *d_res;
 
   // 1 result only
-  cudaMalloc(&d_res, sizeof(float_t));
+  cudaMalloc(&d_res, sizeof(float_t) * thread_count);
 
   struct timespec start, end;
 
