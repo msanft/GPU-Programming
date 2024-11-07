@@ -38,15 +38,15 @@ It should not be used directly. Instead, use the wrapper function
 __global__ void _parallel_calculations(float_t *res_a, float_t *res_d,
                                        float_t *res_e, float_t *res_f) {
   // dummy values
-  float_t a = 1.0;
-  float_t b = 2.0;
-  float_t c = 3.0;
-  float_t d = 4.0;
-  float_t e = 5.0;
-  float_t f = 6.0;
+  float_t a = 1.0f;
+  float_t b = 2.0f;
+  float_t c = 3.0f;
+  float_t d = 4.0f;
+  float_t e = 5.0f;
+  float_t f = 6.0f;
 
 #pragma unroll 16
-  for (unsigned int i = 0; i < NUM_ITERATIONS; i++) {
+  for (uint32_t i = 0; i < NUM_ITERATIONS; i++) {
     a = a * b + c;
     d = d * b + c;
     e = e * b + c;
@@ -73,15 +73,35 @@ It should not be used directly. Instead, use the wrapper function
 */
 __global__ void _non_parallel_calculations(float_t *res) {
   // dummy values
-  float_t a = 1.0;
-  float_t b = 2.0;
-  float_t c = 3.0;
+  float_t a = 1.0f;
+  float_t b = 2.0f;
+  float_t c = 3.0f;
 
 #pragma unroll 16
-  for (unsigned int i = 0; i < NUM_ITERATIONS; i++)
+  for (uint32_t i = 0; i < NUM_ITERATIONS; i++)
     a = a * b + c;
 
   res[threadIdx.x] = a;
+}
+
+/*
+_memory_parallel_calculations performs a series of independent memory operations
+that should be influenced by IL parallelization.
+
+It uses global memory extensively to demonstrate memory ILP.
+
+It should not be used directly. Instead, use the wrapper function
+`memory_parallel_calculations`.
+*/
+__global__ void _memory_parallel_calculations(float_t *res_a, float_t *res_b,
+                                              float_t *res_c, float_t *res_d) {
+#pragma unroll 16
+  for (uint32_t i = 0; i < NUM_ITERATIONS; i++) {
+    res_a[threadIdx.x] *= 3;
+    res_b[threadIdx.x] *= 3;
+    res_c[threadIdx.x] *= 3;
+    res_d[threadIdx.x] *= 3;
+  }
 }
 
 /*
@@ -111,7 +131,8 @@ int64_t parallel_calculations(uint32_t thread_count) {
 
   clock_gettime(CLOCK_MONOTONIC, &start);
 
-  _parallel_calculations<<<1, thread_count>>>(d_res_a, d_res_d, d_res_e, d_res_f);
+  _parallel_calculations<<<1, thread_count>>>(d_res_a, d_res_d, d_res_e,
+                                              d_res_f);
 
   // Wait for all threads to finish.
   checkCudaErrors(cudaDeviceSynchronize());
@@ -163,6 +184,41 @@ int64_t non_parallel_calculations(uint32_t thread_count) {
   return get_time_diff_ns(start, end);
 }
 
+/*
+memory_parallel_calculations is a wrapper function for
+`_memory_parallel_calculations`.
+
+It performs a series of independent memory operations that should be influenced
+by IL parallelization and memory ILP.
+
+It also times the operation and returns the time taken to nanosecond-precision.
+*/
+int64_t memory_parallel_calculations(uint32_t thread_count) {
+  float_t *d_res_a, *d_res_b, *d_res_c, *d_res_d;
+
+  cudaMalloc(&d_res_a, thread_count * sizeof(float_t));
+  cudaMalloc(&d_res_b, thread_count * sizeof(float_t));
+  cudaMalloc(&d_res_c, thread_count * sizeof(float_t));
+  cudaMalloc(&d_res_d, thread_count * sizeof(float_t));
+
+  struct timespec start, end;
+
+  clock_gettime(CLOCK_MONOTONIC, &start);
+
+  _memory_parallel_calculations<<<1, thread_count>>>(d_res_a, d_res_b, d_res_c,
+                                                     d_res_d);
+  checkCudaErrors(cudaDeviceSynchronize());
+
+  clock_gettime(CLOCK_MONOTONIC, &end);
+
+  cudaFree(d_res_a);
+  cudaFree(d_res_b);
+  cudaFree(d_res_c);
+  cudaFree(d_res_d);
+
+  return get_time_diff_ns(start, end);
+}
+
 // <--- MAIN FUNCTION --->
 
 int main(void) {
@@ -184,8 +240,20 @@ int main(void) {
     printf("\tNon-ILP time: %ld ns (%.2f ns per operation)\n", non_ilp_time,
            time_per_op_non_ilp);
 
+    int64_t memory_ilp_time = memory_parallel_calculations(thread_count);
+    // 4 operations per iteration * NUM_ITERATIONS
+    float_t time_per_op_memory_ilp =
+        (float_t)memory_ilp_time / (4 * NUM_ITERATIONS);
+    printf("\tMemory ILP time: %ld ns (%.2f ns per operation)\n",
+           memory_ilp_time, time_per_op_memory_ilp);
+
     float_t speedup = (float_t)time_per_op_non_ilp / time_per_op_ilp;
     printf("\tSpeedup ILP4 vs. non-ILP: %.2f%%\n", (speedup - 1) * 100);
+
+    float_t memory_speedup =
+        (float_t)time_per_op_non_ilp / time_per_op_memory_ilp;
+    printf("\tSpeedup Memory ILP vs. non-ILP: %.2f%%\n",
+           (memory_speedup - 1) * 100);
   }
 
   checkCudaErrors(cudaDeviceReset());
