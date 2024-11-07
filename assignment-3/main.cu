@@ -169,7 +169,7 @@ int main(void) {
     printf("\tNon-ILP time: %ld ns (%.2f ns per operation)\n", non_ilp_time,
            time_per_op_non_ilp);
 
-    float_t speedup = (float_t)non_ilp_time / ilp4_time;
+    float_t speedup = (float_t)time_per_op_non_ilp / time_per_op_ilp;
     printf("\tSpeedup ILP4 vs. non-ILP: %.2f%%\n", (speedup - 1) * 100);
   }
 
