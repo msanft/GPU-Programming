@@ -151,7 +151,7 @@ int64_t non_parallel_calculations(uint32_t thread_count) {
 // <--- MAIN FUNCTION --->
 
 int main(void) {
-  for (uint32_t i = 4; i <= 32; i++) {
+  for (uint32_t i = 0; i <= 11; i++) {
     uint32_t thread_count = 1 << i;
     printf("Thread count: %d\n", thread_count);
 
