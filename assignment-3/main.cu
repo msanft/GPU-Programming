@@ -165,8 +165,8 @@ int main(void) {
 
     printf("\tNon-ILP time: %ld ns\n", non_ilp_time);
 
-    int64_t speedup = non_ilp_time / ilp4_time;
-    printf("\tSpeedup ILP4 vs. non-ILP: %ld%\n", (speedup - 1) * 100);
+    float_t speedup = (float_t)non_ilp_time / ilp4_time;
+    printf("\tSpeedup ILP4 vs. non-ILP: %.2f%\n", (speedup - 1) * 100);
   }
 
   checkCudaErrors(cudaDeviceReset());
