@@ -357,7 +357,7 @@ int main(void) {
 
   printf("\tGPU time: %ld ns\n", gpu_time);
 
-  printf("\tSpeedup: %.2f\n", (float)cpu_time / (float)gpu_time);
+  // printf("\tSpeedup: %.2f\n", (float)cpu_time / (float)gpu_time);
 
   gpu_shared_time = multiply_matrices_gpu_shared(
       p_gpu_shared, n, m, result_size[0], result_size[1], m_size[1]);
